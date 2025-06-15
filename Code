@@ -1,0 +1,106 @@
+from scipy.integrate import solve_ivp
+import matplotlib.pyplot as plt
+import numpy as np
+
+def f(x, y):
+    return 100 - (np.sqrt(x**2 + y**2) + 5 * np.sin(0.1 * x) * np.cos(0.1 * x))
+
+A = np.array([0, 0])
+B = np.array([80, 10])
+
+num_points = 500
+x_line = np.linspace(A[0], B[0], num_points)
+y_line = np.linspace(A[1], B[1], num_points)
+z_line = f(x_line, y_line)
+
+def geodesic_ode(t, state):
+    x, y, vx, vy = state
+    fx = (f(x + 1e-5, y) - f(x - 1e-5, y)) / 2e-5
+    fy = (f(x, y + 1e-5) - f(x, y - 1e-5)) / 2e-5
+    fxx = (f(x + 1e-5, y) - 2*f(x, y) + f(x - 1e-5, y)) / (1e-5)**2
+    fyy = (f(x, y + 1e-5) - 2*f(x, y) + f(x, y - 1e-5)) / (1e-5)**2
+    fxy = (f(x + 1e-5, y + 1e-5) - f(x + 1e-5, y - 1e-5) - f(x - 1e-5, y + 1e-5) + f(x - 1e-5, y - 1e-5)) / (4e-10)
+    E = 1 + fx**2
+    F = fx * fy
+    G = 1 + fy**2
+    Gamma_x = (E * fxx + F * fxy) / (E * G - F**2)
+    Gamma_y = (G * fyy + F * fxy) / (E * G - F**2)
+    ax = -Gamma_x * vx**2
+    ay = -Gamma_y * vy**2
+    return [vx, vy, ax, ay]
+
+direction = (B - A)
+direction = direction / np.linalg.norm(direction)
+speed = np.linalg.norm(B - A)
+v0 = direction * speed
+initial_state = [A[0], A[1], v0[0], v0[1]]
+
+sol = solve_ivp(
+    geodesic_ode,
+    [0, 1],
+    initial_state,
+    t_eval=np.linspace(0, 1, num_points)
+)
+x_path, y_path = sol.y[0], sol.y[1]
+z_path = f(x_path, y_path)
+
+dists = np.sqrt((x_path - B[0])**2 + (y_path - B[1])**2)
+closest_idx = np.argmin(dists)
+
+x = np.linspace(-100, 100, 300)
+y = np.linspace(-100, 100, 300)
+X, Y = np.meshgrid(x, y)
+Z = f(X, Y)
+fig = plt.figure(figsize=(14, 10))
+ax = fig.add_subplot(111, projection='3d')
+ax.plot_surface(X, Y, Z, cmap='Greys', alpha=0.7, linewidth=0, antialiased=False)
+
+ax.plot(x_line+3, y_line, z_line, color='lime', linewidth=3, label='Parametric Path')
+ax.plot(x_path[:closest_idx+1], y_path[:closest_idx+1], z_path[:closest_idx+1], color='dodgerblue', linewidth=3, label='Lagrangian Path')   
+ax.scatter([A[0], B[0]], [A[1], B[1]], [f(*A), f(*B)], color='yellow', edgecolor='black', s=90, label='Endpoints', zorder=10)
+
+
+def tobler_speed(slope):
+    return 6 * np.exp(-3.5 * np.abs(slope + 0.05))
+
+
+tobler_x = []
+tobler_y = []
+tobler_z = []
+tobler_dist = [0]
+tobler_time = [0]
+
+for i in range(1, num_points):
+    x0, y0, z0 = x_line[i-1], y_line[i-1], z_line[i-1]
+    x1, y1, z1 = x_line[i], y_line[i], z_line[i]
+    dx = x1 - x0
+    dy = y1 - y0
+    dz = z1 - z0
+    dist = np.sqrt(dx**2 + dy**2)
+    slope = dz / (dist + 1e-10)
+    speed = tobler_speed(slope)  # km/h
+    # Convert speed to m/s for time calculation (1 km/h = 1000/3600 m/s)
+    speed_mps = speed * 1000 / 3600
+    dt = (np.sqrt(dx**2 + dy**2 + dz**2)) / (speed_mps + 1e-10)
+    tobler_x.append(x1)
+    tobler_y.append(y1)
+    tobler_z.append(z1)
+    tobler_dist.append(tobler_dist[-1] + dist)
+    tobler_time.append(tobler_time[-1] + dt)
+
+
+ax.plot(tobler_x, tobler_y, tobler_z, color='magenta', linewidth=3, label='Tobler-Distance Path')
+
+func_text = (
+    r"$f(x, y) = 100 - \left(\sqrt{x^2 + y^2} + "
+    r"5\sin(0.1x)\cos(0.1x)\right)$"
+)
+ax.text2D(0.05, 0.95, func_text, transform=fig.transFigure, fontsize=15, color='navy')
+
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
+ax.legend()
+ax.view_init(elev=20, azim=45)
+plt.tight_layout()
+plt.savefig("TruePNG.png")
