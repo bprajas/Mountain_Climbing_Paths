@@ -1,28 +1,41 @@
-\section*{Sources and Code Repository}
+How to Climb a Mountain Mathematically
+Overview
+This is a simple Python project that compares three paths for climbing a mountain:
 
-This project draws on a variety of theoretical and practical sources. The following references and datasets were used to build the models and simulate terrain:
+A straight-line (parametric) path
 
-\begin{itemize}
-    \item \textbf{Digital Elevation Models (DEMs):} NASA Shuttle Radar Topography Mission (SRTMGL1 V3)
-    \item \textbf{Snow Cover Data:} MODIS (Moderate Resolution Imaging Spectroradiometer)
-    \item \textbf{Weather and Storm Data:} ERA5 Reanalysis from the European Centre for Medium-Range Weather Forecasts (ECMWF)
-    \item \textbf{Empirical Hiking Model:} Tobler's Hiking Function
-    \item \textbf{Mathematical Frameworks:} Euler--Lagrange equations, Multivariable Calculus, Variational Calculus
-    \item \textbf{Programming Libraries:} Python, NumPy, SciPy, Matplotlib
-\end{itemize}
+A geodesic path using the Euler–Lagrange equation
 
-\subsection*{Code Repository}
-All code used for path simulations, visualisation, and terrain processing is available at the following GitHub repository:
+A time-optimised path using Tobler’s hiking function
 
-\begin{quote}
-\texttt{https://github.com/PrajasBharadwaj/Mountain-Path-Optimisation}
-\end{quote}
+It visualises all three over a synthetic 3D mountain surface and compares their length, slope, and estimated time.
 
-The repository contains scripts for:
-\begin{itemize}
-    \item Parametric baseline path computation
-    \item Geodesic solver via numerical Euler--Lagrange
-    \item Tobler's hiking time minimisation
-    \item Real DEM processing and environmental overlay integration
-    \item 2D/3D path plotting and analysis
-\end{itemize}
+What’s Here
+Python code to compute and plot:
+
+The three paths
+
+Their arc lengths and slopes
+
+A comparison chart
+
+How to Run
+Clone this repo
+
+Install required libraries (e.g., numpy, matplotlib, scipy)
+
+Run the main script (e.g., paths_plot.py)
+
+bash
+Copy
+Edit
+pip install -r requirements.txt
+python paths_plot.py
+Files
+paths_plot.py – Main script that creates the surface and draws the three paths
+
+README.md – You’re reading it
+
+Author
+Prajas Bharadwaj
+June 2025
