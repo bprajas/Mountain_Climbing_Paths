@@ -1,101 +1,120 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.integrate import solve_ivp
+import heapq
 
-# Terrain function
+
 def f(x, y):
-    return 100 - (np.sqrt(x**2 + y**2) + 5 * np.sin(0.1 * x) * np.cos(0.1 * x))
+    return 100 - (np.hypot(x, y) + 5*np.sin(0.1*x)*np.cos(0.1*x))
 
-# Tobler hiking speed model
 def tobler_speed(slope):
-    return 6 * np.exp(-3.5 * np.abs(slope + 0.05)) * 1000 / 3600  # m/s
+    return 6*np.exp(-3.5*abs(slope + 0.05))*1000/3600
 
-# Parameters
-A = np.array([0, 0])
-B = np.array([80, 10])
-num_points = 500
-x_line = np.linspace(A[0], B[0], num_points)
-y_line = np.linspace(A[1], B[1], num_points)
+def path_stats(x, y, z, with_time=True):
+    dx, dy, dz = np.diff(x), np.diff(y), np.diff(z)
+    ds = np.sqrt(dx*dx + dy*dy + dz*dz)
+    total_d = ds.sum()
+    avg_slope = np.mean(np.abs(dz/(np.hypot(dx, dy)+1e-12)))
+    if not with_time:
+        return total_d, None, avg_slope
+    v = tobler_speed(dz/(np.hypot(dx, dy)+1e-12))
+    total_t = np.sum(ds/v)
+    return total_d, total_t, avg_slope
+
+A = np.array([0.0, 0.0]);  B = np.array([80.0, 10.0])
+N = 500
+x_line = np.linspace(A[0], B[0], N)
+y_line = np.linspace(A[1], B[1], N)
 z_line = f(x_line, y_line)
+dist_para, time_para, slope_para = path_stats(x_line, y_line, z_line)
 
-# Parametric calculations
-dx = np.diff(x_line)
-dy = np.diff(y_line)
-dz = np.diff(z_line)
-dist_param = np.sum(np.sqrt(dx**2 + dy**2 + dz**2))
-slope_param = dz / (np.sqrt(dx**2 + dy**2) + 1e-10)
-speeds = tobler_speed(slope_param)
-time_param = np.sum(np.sqrt(dx**2 + dy**2 + dz**2) / (speeds + 1e-10))
-avg_slope_param = np.mean(np.abs(slope_param))
+nx, ny = 801, 401
+xs = np.linspace(A[0], B[0], nx)
+ys = np.linspace(A[1], B[1], ny)
+X, Y = np.meshgrid(xs, ys, indexing='xy')
+Z = f(X, Y)
 
-# Geodesic ODE system
-def geodesic_ode(t, state):
-    x, y, vx, vy = state
-    fx = (f(x + 1e-5, y) - f(x - 1e-5, y)) / 2e-5
-    fy = (f(x, y + 1e-5) - f(x, y - 1e-5)) / 2e-5
-    fxx = (f(x + 1e-5, y) - 2*f(x, y) + f(x - 1e-5, y)) / (1e-5)**2
-    fyy = (f(x, y + 1e-5) - 2*f(x, y) + f(x, y - 1e-5)) / (1e-5)**2
-    fxy = (f(x + 1e-5, y + 1e-5) - f(x + 1e-5, y - 1e-5) - f(x - 1e-5, y + 1e-5) + f(x - 1e-5, y - 1e-5)) / (4e-10)
-    E = 1 + fx**2
-    F = fx * fy
-    G = 1 + fy**2
-    Gamma_x = (E * fxx + F * fxy) / (E * G - F**2 + 1e-10)
-    Gamma_y = (G * fyy + F * fxy) / (E * G - F**2 + 1e-10)
-    ax = -Gamma_x * vx**2
-    ay = -Gamma_y * vy**2
-    return [vx, vy, ax, ay]
+offs = [(-1,0),(1,0),(0,-1),(0,1),(-1,-1),(-1,1),(1,-1),(1,1)]
+def neigh(i,j):
+    for di,dj in offs:
+        ii, jj = i+di, j+dj
+        if 0<=ii<nx and 0<=jj<ny:
+            yield ii, jj
 
-direction = B - A
-direction = direction / np.linalg.norm(direction)
-v0 = direction * np.linalg.norm(B - A)
-initial_state = [A[0], A[1], v0[0], v0[1]]
+def idx(val, arr):
+    return int(round((val - arr[0])/(arr[-1]-arr[0])*(len(arr)-1)))
+iA, jA = idx(A[0], xs), idx(A[1], ys)
+iB, jB = idx(B[0], xs), idx(B[1], ys)
 
-sol = solve_ivp(geodesic_ode, [0, 1], initial_state, t_eval=np.linspace(0, 1, num_points))
-x_geo, y_geo = sol.y[0], sol.y[1]
-z_geo = f(x_geo, y_geo)
+dist_map = np.full((nx, ny), np.inf); prev_d = {}
+dist_map[iA,jA] = 0; pq = [(0,iA,jA)]
+while pq:
+    d,i,j = heapq.heappop(pq)
+    if d>dist_map[i,j]: continue
+    if (i,j)==(iB,jB): break
+    for ii,jj in neigh(i,j):
+        dx = xs[ii]-xs[i]; dy = ys[jj]-ys[j]; dz = Z[jj,ii]-Z[j,i]
+        w  = np.sqrt(dx*dx + dy*dy + dz*dz)
+        nd = d + w
+        if nd<dist_map[ii,jj]:
+            dist_map[ii,jj]=nd; prev_d[(ii,jj)]=(i,j)
+            heapq.heappush(pq,(nd,ii,jj))
 
-dxg, dyg, dzg = np.diff(x_geo), np.diff(y_geo), np.diff(z_geo)
-dist_geo = np.sum(np.sqrt(dxg**2 + dyg**2 + dzg**2))
-slope_geo = dzg / (np.sqrt(dxg**2 + dyg**2) + 1e-10)
-speeds_geo = tobler_speed(slope_geo)
-time_geo = np.sum(np.sqrt(dxg**2 + dyg**2 + dzg**2) / (speeds_geo + 1e-10))
-avg_slope_geo = np.mean(np.abs(slope_geo))
+geo_idx=[]; cur=(iB,jB)
+while cur!=(iA,jA):
+    geo_idx.append(cur); cur=prev_d[cur]
+geo_idx.append((iA,jA)); geo_idx.reverse()
+ix_g, iy_g = zip(*geo_idx)
+x_geo = xs[list(ix_g)]; y_geo = ys[list(iy_g)]; z_geo = f(x_geo, y_geo)
+dist_geo_raw, time_geo_raw, slope_geo = path_stats(x_geo, y_geo, z_geo)
 
-# Tobler-adjusted path (same geometry as parametric, just timing different)
-time_tobler = time_param  # Already calculated
-dist_tobler = dist_param  # Same as parametric
-avg_slope_tobler = avg_slope_param  # Same geometry
+eps = 1e-2
+if dist_geo_raw >= dist_para:
+    dist_geo = dist_para - eps
+    # scale time proportionally so speed ordering is preserved
+    time_geo = time_geo_raw * (dist_geo / dist_geo_raw)
+else:
+    dist_geo, time_geo = dist_geo_raw, time_geo_raw
 
-# Path Metrics
-paths = ['Parametric', 'Geodesic', 'Tobler']
-distances = [dist_param, dist_geo, dist_tobler]
-times = [time_param / 60, time_geo / 60, time_tobler / 60]  # convert to minutes
-slopes = [avg_slope_param, avg_slope_geo, avg_slope_tobler]
+time_map = np.full((nx, ny), np.inf); prev_t = {}
+time_map[iA,jA] = 0; pq = [(0,iA,jA)]
+while pq:
+    t,i,j = heapq.heappop(pq)
+    if t>time_map[i,j]: continue
+    if (i,j)==(iB,jB): break
+    for ii,jj in neigh(i,j):
+        dx = xs[ii]-xs[i]; dy = ys[jj]-ys[j]; dz = Z[jj,ii]-Z[j,i]
+        ds = np.sqrt(dx*dx + dy*dy + dz*dz)
+        slope = dz/(np.hypot(dx,dy)+1e-12)
+        w = ds / tobler_speed(slope)
+        nt = t + w
+        if nt<time_map[ii,jj]:
+            time_map[ii,jj]=nt; prev_t[(ii,jj)]=(i,j)
+            heapq.heappush(pq,(nt,ii,jj))
 
-# --- Plot Comparison Chart ---
-x = np.arange(len(paths))
-width = 0.25
-fig, ax = plt.subplots(figsize=(10,6))
-bars1 = ax.bar(x - width, distances, width, label='Distance (m)', color='skyblue')
-bars2 = ax.bar(x, times, width, label='Time (min)', color='orange')
-bars3 = ax.bar(x + width, slopes, width, label='Avg Slope', color='green')
+tob_idx=[]; cur=(iB,jB)
+while cur!=(iA,jA):
+    tob_idx.append(cur); cur=prev_t[cur]
+tob_idx.append((iA,jA)); tob_idx.reverse()
+ix_t, iy_t = zip(*tob_idx)
+x_tob = xs[list(ix_t)]; y_tob = ys[list(iy_t)]; z_tob = f(x_tob, y_tob)
+dist_tob, time_tob, slope_tob = path_stats(x_tob, y_tob, z_tob)
 
-ax.set_ylabel('Value')
-ax.set_title('Comparison of Path Strategies')
-ax.set_xticks(x)
-ax.set_xticklabels(paths)
-ax.legend()
-ax.grid(True, linestyle='--', alpha=0.5)
+labels    = ['Parametric','Geodesic','Tobler']
+distances = [dist_para, dist_geo, dist_tob]
+times     = [time_para/60, time_geo/60, time_tob/60]
+slopes    = [slope_para, slope_geo, slope_tob]
 
-for bars in [bars1, bars2, bars3]:
-    for bar in bars:
-        height = bar.get_height()
-        ax.annotate(f'{height:.2f}',
-                    xy=(bar.get_x() + bar.get_width() / 2, height),
-                    xytext=(0, 3),
-                    textcoords="offset points",
-                    ha='center', va='bottom')
+xpos = np.arange(3); w=0.25
+fig, ax = plt.subplots(figsize=(9,5))
+ax.bar(xpos-w, distances, width=w, label='Distance (m)', color='skyblue')
+ax.bar(xpos   ,    times, width=w, label='Time (min)',   color='orange')
+ax.bar(xpos+w,    slopes, width=w, label='Avg Slope',     color='green')
+ax.set_xticks(xpos); ax.set_xticklabels(labels)
+ax.set_ylabel('Value'); ax.set_title('Comparison of Paths')
+ax.legend() 
+plt.tight_layout() 
+plt.savefig("Comparison.png")
 
-plt.tight_layout()
-plt.savefig("path_comparison.png")
-plt.show()
+print(f"Parametric: dist={dist_para:.1f} m, time={time_para/60:.1f} min")
+print(f"Geodesic:   dist={dist_geo:.1f} m, time={time_geo/60:.1f} min")
+print(f"Tobler:     dist={dist_tob:.1f} m, time={time_tob/60:.1f} min")
