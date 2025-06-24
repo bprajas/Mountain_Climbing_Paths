@@ -12,6 +12,8 @@ A time-optimised path using Tobler’s hiking function.
 
 It visualises all three over a synthetic 3D mountain surface and compares their length, slope, and estimated time.
 
+
+
 What’s Here:
 
 Python code to compute and plot:
@@ -22,6 +24,8 @@ Their arc lengths and slopes
 
 A comparison chart
 
+
+
 How to Run:
 
 Clone this repo
@@ -30,11 +34,15 @@ Install required libraries (e.g., numpy, matplotlib, scipy)
 
 Run the main script (e.g., paths_plot.py)
 
+
+
 Files:
 
 paths_plot.py – Main script that creates the surface and draws the three paths
 
 README.md – You’re reading it
+
+
 
 Author:
 
