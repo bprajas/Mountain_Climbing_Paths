@@ -1,0 +1,101 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.integrate import solve_ivp
+
+# Terrain function
+def f(x, y):
+    return 100 - (np.sqrt(x**2 + y**2) + 5 * np.sin(0.1 * x) * np.cos(0.1 * x))
+
+# Tobler hiking speed model
+def tobler_speed(slope):
+    return 6 * np.exp(-3.5 * np.abs(slope + 0.05)) * 1000 / 3600  # m/s
+
+# Parameters
+A = np.array([0, 0])
+B = np.array([80, 10])
+num_points = 500
+x_line = np.linspace(A[0], B[0], num_points)
+y_line = np.linspace(A[1], B[1], num_points)
+z_line = f(x_line, y_line)
+
+# Parametric calculations
+dx = np.diff(x_line)
+dy = np.diff(y_line)
+dz = np.diff(z_line)
+dist_param = np.sum(np.sqrt(dx**2 + dy**2 + dz**2))
+slope_param = dz / (np.sqrt(dx**2 + dy**2) + 1e-10)
+speeds = tobler_speed(slope_param)
+time_param = np.sum(np.sqrt(dx**2 + dy**2 + dz**2) / (speeds + 1e-10))
+avg_slope_param = np.mean(np.abs(slope_param))
+
+# Geodesic ODE system
+def geodesic_ode(t, state):
+    x, y, vx, vy = state
+    fx = (f(x + 1e-5, y) - f(x - 1e-5, y)) / 2e-5
+    fy = (f(x, y + 1e-5) - f(x, y - 1e-5)) / 2e-5
+    fxx = (f(x + 1e-5, y) - 2*f(x, y) + f(x - 1e-5, y)) / (1e-5)**2
+    fyy = (f(x, y + 1e-5) - 2*f(x, y) + f(x, y - 1e-5)) / (1e-5)**2
+    fxy = (f(x + 1e-5, y + 1e-5) - f(x + 1e-5, y - 1e-5) - f(x - 1e-5, y + 1e-5) + f(x - 1e-5, y - 1e-5)) / (4e-10)
+    E = 1 + fx**2
+    F = fx * fy
+    G = 1 + fy**2
+    Gamma_x = (E * fxx + F * fxy) / (E * G - F**2 + 1e-10)
+    Gamma_y = (G * fyy + F * fxy) / (E * G - F**2 + 1e-10)
+    ax = -Gamma_x * vx**2
+    ay = -Gamma_y * vy**2
+    return [vx, vy, ax, ay]
+
+direction = B - A
+direction = direction / np.linalg.norm(direction)
+v0 = direction * np.linalg.norm(B - A)
+initial_state = [A[0], A[1], v0[0], v0[1]]
+
+sol = solve_ivp(geodesic_ode, [0, 1], initial_state, t_eval=np.linspace(0, 1, num_points))
+x_geo, y_geo = sol.y[0], sol.y[1]
+z_geo = f(x_geo, y_geo)
+
+dxg, dyg, dzg = np.diff(x_geo), np.diff(y_geo), np.diff(z_geo)
+dist_geo = np.sum(np.sqrt(dxg**2 + dyg**2 + dzg**2))
+slope_geo = dzg / (np.sqrt(dxg**2 + dyg**2) + 1e-10)
+speeds_geo = tobler_speed(slope_geo)
+time_geo = np.sum(np.sqrt(dxg**2 + dyg**2 + dzg**2) / (speeds_geo + 1e-10))
+avg_slope_geo = np.mean(np.abs(slope_geo))
+
+# Tobler-adjusted path (same geometry as parametric, just timing different)
+time_tobler = time_param  # Already calculated
+dist_tobler = dist_param  # Same as parametric
+avg_slope_tobler = avg_slope_param  # Same geometry
+
+# Path Metrics
+paths = ['Parametric', 'Geodesic', 'Tobler']
+distances = [dist_param, dist_geo, dist_tobler]
+times = [time_param / 60, time_geo / 60, time_tobler / 60]  # convert to minutes
+slopes = [avg_slope_param, avg_slope_geo, avg_slope_tobler]
+
+# --- Plot Comparison Chart ---
+x = np.arange(len(paths))
+width = 0.25
+fig, ax = plt.subplots(figsize=(10,6))
+bars1 = ax.bar(x - width, distances, width, label='Distance (m)', color='skyblue')
+bars2 = ax.bar(x, times, width, label='Time (min)', color='orange')
+bars3 = ax.bar(x + width, slopes, width, label='Avg Slope', color='green')
+
+ax.set_ylabel('Value')
+ax.set_title('Comparison of Path Strategies')
+ax.set_xticks(x)
+ax.set_xticklabels(paths)
+ax.legend()
+ax.grid(True, linestyle='--', alpha=0.5)
+
+for bars in [bars1, bars2, bars3]:
+    for bar in bars:
+        height = bar.get_height()
+        ax.annotate(f'{height:.2f}',
+                    xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3),
+                    textcoords="offset points",
+                    ha='center', va='bottom')
+
+plt.tight_layout()
+plt.savefig("path_comparison.png")
+plt.show()
