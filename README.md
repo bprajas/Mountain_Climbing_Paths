@@ -20,7 +20,7 @@ Python code to compute and plot:
 
 The three paths
 
-Their arc lengths and slopes
+Their arc lengths
 
 A comparison chart
 
