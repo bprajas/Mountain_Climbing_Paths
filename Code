@@ -63,7 +63,6 @@ ax.scatter([A[0], B[0]], [A[1], B[1]], [f(*A), f(*B)], color='yellow', edgecolor
 def tobler_speed(slope):
     return 6 * np.exp(-3.5 * np.abs(slope + 0.05))
 
-
 tobler_x = []
 tobler_y = []
 tobler_z = []
@@ -78,8 +77,7 @@ for i in range(1, num_points):
     dz = z1 - z0
     dist = np.sqrt(dx**2 + dy**2)
     slope = dz / (dist + 1e-10)
-    speed = tobler_speed(slope)  # km/h
-    # Convert speed to m/s for time calculation (1 km/h = 1000/3600 m/s)
+    speed = tobler_speed(slope)
     speed_mps = speed * 1000 / 3600
     dt = (np.sqrt(dx**2 + dy**2 + dz**2)) / (speed_mps + 1e-10)
     tobler_x.append(x1)
@@ -87,7 +85,6 @@ for i in range(1, num_points):
     tobler_z.append(z1)
     tobler_dist.append(tobler_dist[-1] + dist)
     tobler_time.append(tobler_time[-1] + dt)
-
 
 ax.plot(tobler_x, tobler_y, tobler_z, color='magenta', linewidth=3, label='Tobler-Distance Path')
 
