@@ -27,5 +27,6 @@ paths_plot.py – Main script that creates the surface and draws the three paths
 README.md – You’re reading it
 
 Author:
+
 Prajas Bharadwaj
 June 2025
